@@ -57,24 +57,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 const resp = await fetch(`/activities/${encodeURIComponent(activityName)}/participants?email=${encodeURIComponent(email)}`, { method: 'DELETE' });
                 const resJson = await resp.json();
                 if (resp.ok) {
-                  // remove the list item from the DOM
-                  const li = activityCard.querySelector(`li[data-email="${email}"]`);
-                  if (li) li.remove();
-                      await fetchActivities();
-
-                  // update availability text
-                  const availabilityP = activityCard.querySelector('p strong');
-                  // Recompute spots left locally (best-effort) by decrementing
-                  // This is a simple UI update; the server is the source of truth.
-                  const spotsLeftText = activityCard.querySelector('p:nth-of-type(3)');
-                  if (spotsLeftText) {
-                    // find numbers in the text and adjust if possible
-                    const match = spotsLeftText.textContent.match(/(\d+) spots left/);
-                    if (match) {
-                      const n = Math.max(0, parseInt(match[1], 10) + 1); // freed a spot
-                      spotsLeftText.textContent = `Availability: ${n} spots left`;
-                    }
-                  }
+                  // Refresh the activities list to reflect the change (server is source of truth)
+                  await fetchActivities();
                 } else {
                   console.error('Failed to unregister:', resJson);
                   alert(resJson.detail || 'Failed to unregister participant');
@@ -102,11 +86,8 @@ document.addEventListener("DOMContentLoaded", () => {
   signupForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    const email = document.getElementById("email").value;
-    const activity = document.getElementById("activity").value;
-
-            // Refresh activities so the new participant appears immediately
-            await fetchActivities();
+  const email = document.getElementById("email").value;
+  const activity = document.getElementById("activity").value;
     try {
       const response = await fetch(
         `/activities/${encodeURIComponent(activity)}/signup?email=${encodeURIComponent(email)}`,
@@ -121,6 +102,8 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        // Refresh activities so the new participant appears immediately
+        await fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
