@@ -14,20 +14,61 @@ document.addEventListener("DOMContentLoaded", () => {
       activitiesList.innerHTML = "";
 
       // Populate activities list
+          // Reset activity select options (keep placeholder)
+          activitySelect.innerHTML = '<option value="">-- Select an activity --</option>';
       Object.entries(activities).forEach(([name, details]) => {
         const activityCard = document.createElement("div");
         activityCard.className = "activity-card";
 
         const spotsLeft = details.max_participants - details.participants.length;
 
+          // Build participants section HTML with delete buttons
+          const participants = details.participants || [];
+          let participantsHtml = `<div class="participants-section">
+            <h5 class="participants-title">Participants</h5>`;
+          if (participants.length) {
+            participantsHtml += `<ul class="participants-list">` + participants.map(p => {
+              // each list item will contain the email and a delete button
+              return `<li data-email="${p}"><span class="participant-email">${p}</span> <button class="btn-delete" data-email="${p}" data-activity="${name}" aria-label="Unregister ${p}">✖</button></li>`
+            }).join("") + `</ul>`;
+          } else {
+            participantsHtml += `<p class="no-participants">Aucun participant pour l'instant</p>`;
+          }
+          participantsHtml += `</div>`;
+
         activityCard.innerHTML = `
           <h4>${name}</h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          ${participantsHtml}
         `;
 
         activitiesList.appendChild(activityCard);
+
+          // Attach delete handlers for participant buttons inside this activity card
+          const deleteButtons = activityCard.querySelectorAll('.btn-delete');
+          deleteButtons.forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+              const email = btn.getAttribute('data-email');
+              const activityName = btn.getAttribute('data-activity');
+
+              try {
+                const resp = await fetch(`/activities/${encodeURIComponent(activityName)}/participants?email=${encodeURIComponent(email)}`, { method: 'DELETE' });
+                const resJson = await resp.json();
+                if (resp.ok) {
+                  // Refresh the activities list to reflect the change (server is source of truth)
+                  await fetchActivities();
+                } else {
+                  console.error('Failed to unregister:', resJson);
+                  alert(resJson.detail || 'Failed to unregister participant');
+                }
+              } catch (err) {
+                console.error('Error unregistering participant:', err);
+                alert('Error unregistering participant');
+              }
+            });
+          });
 
         // Add option to select dropdown
         const option = document.createElement("option");
@@ -45,9 +86,8 @@ document.addEventListener("DOMContentLoaded", () => {
   signupForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    const email = document.getElementById("email").value;
-    const activity = document.getElementById("activity").value;
-
+  const email = document.getElementById("email").value;
+  const activity = document.getElementById("activity").value;
     try {
       const response = await fetch(
         `/activities/${encodeURIComponent(activity)}/signup?email=${encodeURIComponent(email)}`,
@@ -62,6 +102,8 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        // Refresh activities so the new participant appears immediately
+        await fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
